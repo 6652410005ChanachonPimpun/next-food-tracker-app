@@ -2,28 +2,37 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { User } from '@supabase/supabase-js';
+//เพิ่มเพราะใช้ any ไม่ได้
+interface FoodEntry {
+    id: number;
+    fooddate_at: string;
+    food_image_url: string | null;
+    foodname: string;
+    meal: string;
+}
+
+interface UserProfile {
+    fullname: string;
+    user_image_url: string | null;
+}
 
 export default function DashboardPage() {
-    const [foodData, setFoodData] = useState<any[]>([]);
-    const [user, setUser] = useState<User | null>(null);
-    const [userProfile, setUserProfile] = useState<any | null>(null);
+    const [foodData, setFoodData] = useState<FoodEntry[]>([]);
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchUserDataAndFood = async () => {
             try {
-                //  ดึงข้อมูล user ที่กำลังล็อกอินอยู่
                 const { data: { user: currentUser } } = await supabase.auth.getUser();
 
                 if (!currentUser) {
                     setIsLoading(false);
                     return;
                 }
-                setUser(currentUser);
 
-                // ดึงข้อมูลโปรไฟล์ของผู้ใช้
+                // ดึงข้อมูลโปรไฟล์ (user_tb) ของผู้ใช้คนนี้
                 const { data: profileData, error: profileError } = await supabase
                     .from('user_tb')
                     .select('fullname, user_image_url')
@@ -31,11 +40,12 @@ export default function DashboardPage() {
                     .single();
 
                 if (profileError) {
-                    console.error("เกิดข้อผิดพลาดในการดึงข้อมูลโปรไฟล์:", profileError.message);
+                    console.error("Could not fetch user profile:", profileError.message);
                 } else {
                     setUserProfile(profileData);
                 }
 
+                // ดึงข้อมูลอาหาร (food_tb) ของผู้ใช้คนนี้
                 const { data, error } = await supabase
                     .from('food_tb')
                     .select('*')
@@ -45,6 +55,7 @@ export default function DashboardPage() {
                 if (error) {
                     throw error;
                 }
+
                 setFoodData(data);
 
             } catch (err) {
@@ -58,11 +69,12 @@ export default function DashboardPage() {
                 setIsLoading(false);
             }
         };
+
         fetchUserDataAndFood();
     }, []);
 
     const handleDelete = async (id: number) => {
-        if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?')) {
+        if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้? (การกระทำนี้จะลบรูปภาพอย่างถาวร)')) {
             try {
                 const itemToDelete = foodData.find(item => item.id === id);
 
