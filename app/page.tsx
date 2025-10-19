@@ -2,11 +2,11 @@ import React from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import Image from 'next/image'
-import foodtracker from './images/foodtracker.jpg'
+import foodtracker from '../public/foodtracker.jpg'
 
 const HomePage = () => {
   return (
-    // คอนเทนเนอร์หลักที่ใช้ gradient สีสำหรับพื้นหลัง และจัดองค์ประกอบให้อยู่กึ่งกลาง
+    // คอนเทนเนอร์หลัก สีสำหรับพื้นหลัง และจัดองค์ประกอบให้อยู่กึ่งกลาง
     <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-slate-100">
       
       {/* ส่วนหัวข้อหลัก */}

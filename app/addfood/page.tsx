@@ -1,44 +1,101 @@
 'use client';
-import React, { useState, useRef } from 'react';
 
-// Single component to handle the entire page
-const App = () => {
+import React, { useState, useRef } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useRouter } from 'next/navigation';
+
+const AddFoodPage = () => {
+  const router = useRouter();
+
   const [foodName, setFoodName] = useState<string>('');
   const [mealType, setMealType] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Function to handle image selection and preview
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     } else {
+      setImageFile(null);
       setImagePreview(null);
     }
   };
 
-  // Function to handle form submission
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    console.log({
-      foodName,
-      mealType,
-      selectedDate,
-      imageFile: imagePreview ? 'Image data exists' : 'No image',
-    });
-    alert('บันทึกข้อมูลอาหารแล้ว!'); // Use a temporary alert for demonstration
-    // In a real app, you would send this data to a backend or database.
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("คุณต้องเข้าสู่ระบบก่อนทำการบันทึกข้อมูล");
+      }
+
+      let foodImageUrl = '';
+
+      if (imageFile) {
+        const fileName = `${user.id}/${Date.now()}_${imageFile.name}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('food_bk')
+          .upload(fileName, imageFile);
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from('food_bk')
+          .getPublicUrl(fileName);
+
+        foodImageUrl = publicUrlData.publicUrl;
+      }
+
+      const foodData = {
+        foodname: foodName,
+        meal: mealType,
+        fooddate_at: selectedDate,
+        food_image_url: foodImageUrl,
+        user_id: user.id,
+      };
+
+      const { error: dbError } = await supabase.from('food_tb').insert([foodData]);
+
+      if (dbError) {
+        throw dbError;
+      }
+
+      alert('บันทึกข้อมูลอาหารสำเร็จ!');
+      router.push('/dashboard');
+
+    } catch (error) {
+      let message = 'เกิดข้อผิดพลาดที่ไม่รู้จัก';
+      if (error instanceof Error) {
+        message = error.message;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        message = String(error.message);
+      }
+      console.error('Detailed Error:', error); 
+      setErrorMessage(`เกิดข้อผิดพลาด: ${message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Function to navigate back to the dashboard
   const handleGoBack = () => {
-    window.location.href = '/dashboard';
+    router.push('/dashboard');
   };
 
   return (
@@ -48,13 +105,16 @@ const App = () => {
           เพิ่มอาหาร
         </h1>
 
-        {/* Form to add food details */}
+        {errorMessage && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+            <span className="block sm:inline">{errorMessage}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Food Name Input */}
+          {/* Food Name */}
           <div>
-            <label htmlFor="foodName" className="block text-gray-700 text-sm font-semibold mb-2">
-              ชื่ออาหาร
-            </label>
+            <label htmlFor="foodName" className="block text-gray-700 text-sm font-semibold mb-2">ชื่ออาหาร</label>
             <input
               type="text"
               id="foodName"
@@ -66,11 +126,9 @@ const App = () => {
             />
           </div>
 
-          {/* Meal Type Select */}
+          {/* Meal Select */}
           <div>
-            <label htmlFor="mealType" className="block text-gray-700 text-sm font-semibold mb-2">
-              มื้ออาหาร
-            </label>
+            <label htmlFor="mealType" className="block text-gray-700 text-sm font-semibold mb-2">มื้ออาหาร</label>
             <select
               id="mealType"
               className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition duration-300"
@@ -79,18 +137,16 @@ const App = () => {
               required
             >
               <option value="" disabled>เลือกมื้ออาหาร</option>
-              <option value="breakfast">มื้อเช้า</option>
-              <option value="lunch">มื้อกลางวัน</option>
-              <option value="dinner">มื้อเย็น</option>
-              <option value="snack">ของว่าง</option>
+              <option value="มื้อเช้า">มื้อเช้า</option>
+              <option value="มื้อกลางวัน">มื้อกลางวัน</option>
+              <option value="มื้อเย็น">มื้อเย็น</option>
+              <option value="ของว่าง">ของว่าง</option>
             </select>
           </div>
 
           {/* Date Picker */}
           <div>
-            <label htmlFor="date" className="block text-gray-700 text-sm font-semibold mb-2">
-              วันที่
-            </label>
+            <label htmlFor="date" className="block text-gray-700 text-sm font-semibold mb-2">วันที่</label>
             <input
               type="date"
               id="date"
@@ -103,9 +159,7 @@ const App = () => {
 
           {/* Image Upload and Preview */}
           <div className="flex flex-col items-center">
-            <label className="block text-gray-700 text-sm font-semibold mb-2">
-              รูปภาพอาหาร
-            </label>
+            <label className="block text-gray-700 text-sm font-semibold mb-2">รูปภาพอาหาร</label>
             <input
               type="file"
               accept="image/*"
@@ -113,11 +167,10 @@ const App = () => {
               ref={fileInputRef}
               onChange={handleImageChange}
             />
-            {/* Custom button to trigger file input */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 transform hover:scale-105"
+              className="cursor-pointer bg-white border border-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-50 transition-colors duration-200"
             >
               เลือกรูปภาพ
             </button>
@@ -136,13 +189,14 @@ const App = () => {
           {/* Save Button */}
           <button
             type="submit"
-            className="w-full bg-lime-500 hover:bg-lime-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 transform hover:scale-105"
+            className="w-full bg-lime-500 hover:bg-lime-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 transform hover:scale-105 disabled:bg-gray-400"
+            disabled={isLoading}
           >
-            บันทึก
+            {isLoading ? 'กำลังบันทึก...' : 'บันทึก'}
           </button>
         </form>
 
-        {/* Back to Dashboard Button */}
+        {/* Dashboard Button */}
         <div className="mt-6 text-center">
           <button
             onClick={handleGoBack}
@@ -156,4 +210,5 @@ const App = () => {
   );
 };
 
-export default App;
+export default AddFoodPage;
+
